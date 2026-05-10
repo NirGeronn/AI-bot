@@ -18,6 +18,51 @@ This bot is designed for **a single owner** — you. Authorization is locked to 
 
 ---
 
+## What you can do with it
+
+Just message the bot in plain language — it figures out which tool to call. Some real examples:
+
+### 📅 Daily life
+- _"What's on my calendar today?"_
+- _"Remind me to call mom tomorrow at 6pm"_
+- _"Every Sunday at 9am, send me a list of this week's meetings"_
+- _"Add milk and eggs to my shopping list"_
+- _"What's the weather like in Tel Aviv this weekend?"_
+
+### 📧 Email & comms
+- _"Any important emails from this morning?"_
+- _"Summarize the thread from Dana about the budget"_
+- _"Draft a reply saying I'll get back to him on Monday"_
+
+### 🌐 Research & information
+- _"What's the latest on the Fed rate decision?"_
+- _"Compare the iPhone 16 Pro and Pixel 9 Pro — battery, camera, price"_
+- _"Read https://example.com/long-article and give me the key points"_
+- _"Summarize this YouTube video: <link>"_
+
+### 🎨 Creative
+- _"Generate an image of a corgi astronaut on Mars"_
+- _"Take this photo I sent and make it look like an oil painting"_
+- _(send a voice message and get a voice reply back)_
+
+### 🧠 Memory & personalization
+- _"Remember that my wife's birthday is March 14"_
+- _"What do you know about me?"_
+- _"I prefer concise answers — don't write long replies unless I ask"_
+
+### ⚙️ Utility
+- _"Is github.com down?"_
+- _"Run a speed test"_
+- _"Was my email in any data breach?"_
+- _"What's trending on GitHub for Rust this week?"_
+
+### 📰 Proactive (no prompt needed)
+- Wakes up each morning with a personalized news digest based on your interests
+- Heartbeat checks (inbox, calendar, todos) on a schedule
+- Pulse: occasional smart unsolicited messages (a heads-up, a question, a nudge)
+
+---
+
 ## Features
 
 ### Core
