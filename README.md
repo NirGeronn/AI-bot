@@ -1,8 +1,41 @@
 # Nehoray — Personal Telegram AI Bot
 
+[![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://core.telegram.org/bots)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Anthropic](https://img.shields.io/badge/Anthropic_Claude-191919?style=for-the-badge&logo=anthropic&logoColor=white)](https://www.anthropic.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
+[![Gmail](https://img.shields.io/badge/Gmail-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](https://developers.google.com/gmail/api)
+[![Google Calendar](https://img.shields.io/badge/Google_Calendar-4285F4?style=for-the-badge&logo=googlecalendar&logoColor=white)](https://developers.google.com/calendar)
+[![Google Cloud](https://img.shields.io/badge/Google_Cloud-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
 A self-hosted, personal AI assistant on Telegram, powered by Anthropic Claude. Built around a skills-based architecture (each capability is a markdown file), persistent memory, proactive scheduling, and a growing library of tools — Gmail, Calendar, web search, browser automation, image generation, voice replies, and more.
 
 This bot is designed for **a single owner** — you. Authorization is locked to your Telegram chat ID.
+
+---
+
+## Screenshots
+
+> _Drop your screenshots into `docs/screenshots/` with the filenames below._
+
+<table>
+<tr>
+<td width="50%"><b>Chat</b><br><img src="docs/screenshots/chat.png" alt="Chat with the bot" width="100%"></td>
+<td width="50%"><b>Daily news digest</b><br><img src="docs/screenshots/news-digest.png" alt="Morning news digest" width="100%"></td>
+</tr>
+<tr>
+<td><b>Calendar &amp; Gmail</b><br><img src="docs/screenshots/calendar-gmail.png" alt="Calendar and Gmail tools" width="100%"></td>
+<td><b>Image generation</b><br><img src="docs/screenshots/image-gen.png" alt="Image generation" width="100%"></td>
+</tr>
+<tr>
+<td><b>Memory &amp; usage</b><br><img src="docs/screenshots/usage.png" alt="Token usage and memory" width="100%"></td>
+<td><b>Voice reply</b><br><img src="docs/screenshots/voice.png" alt="Voice reply" width="100%"></td>
+</tr>
+</table>
 
 ---
 
