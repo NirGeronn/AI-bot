@@ -18,27 +18,6 @@ This bot is designed for **a single owner** — you. Authorization is locked to 
 
 ---
 
-## Screenshots
-
-> _Drop your screenshots into `docs/screenshots/` with the filenames below._
-
-<table>
-<tr>
-<td width="50%"><b>Chat</b><br><img src="docs/screenshots/chat.png" alt="Chat with the bot" width="100%"></td>
-<td width="50%"><b>Daily news digest</b><br><img src="docs/screenshots/news-digest.png" alt="Morning news digest" width="100%"></td>
-</tr>
-<tr>
-<td><b>Calendar &amp; Gmail</b><br><img src="docs/screenshots/calendar-gmail.png" alt="Calendar and Gmail tools" width="100%"></td>
-<td><b>Image generation</b><br><img src="docs/screenshots/image-gen.png" alt="Image generation" width="100%"></td>
-</tr>
-<tr>
-<td><b>Memory &amp; usage</b><br><img src="docs/screenshots/usage.png" alt="Token usage and memory" width="100%"></td>
-<td><b>Voice reply</b><br><img src="docs/screenshots/voice.png" alt="Voice reply" width="100%"></td>
-</tr>
-</table>
-
----
-
 ## Features
 
 - **Conversational** — natural chat with full history, memory, and personality (skills/soul.md)
