@@ -359,6 +359,12 @@ pytest -q
 
 ---
 
+## Contributing
+
+Pull requests welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the tool/skill pattern, and coding conventions.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
