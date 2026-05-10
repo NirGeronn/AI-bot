@@ -8,7 +8,7 @@ import json
 import logging
 import time
 import aiosqlite
-from config import DB_PATH, MODEL, BOT_OWNER_NAME, BOT_LANGUAGE, USER_TIMEZONE
+from config import DB_PATH, MODEL, BOT_OWNER_NAME, NEWS_DIGEST_LANGUAGE, USER_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ async def generate_news_digest(chat_id: int) -> str | None:
 
     system_prompt = (
         f"You are creating a personalized morning news briefing for {BOT_OWNER_NAME}. "
-        f"Write in {BOT_LANGUAGE}. Keep it concise and easy to scan.\n\n"
+        f"Write in {NEWS_DIGEST_LANGUAGE}. Keep it concise and easy to scan.\n\n"
         "Rules:\n"
         "- Start with a short friendly morning greeting\n"
         "- Group news by topic/category\n"

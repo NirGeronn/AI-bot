@@ -22,7 +22,8 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "agent.db")
 
 # Personalization
 BOT_OWNER_NAME = os.environ.get("BOT_OWNER_NAME", "Nir")
-BOT_LANGUAGE = os.environ.get("BOT_LANGUAGE", "Hebrew")
+BOT_LANGUAGE = os.environ.get("BOT_LANGUAGE", "English")
+NEWS_DIGEST_LANGUAGE = os.environ.get("NEWS_DIGEST_LANGUAGE", BOT_LANGUAGE)
 USER_TIMEZONE = os.environ.get("USER_TIMEZONE", "Asia/Jerusalem")
 BOT_USER_AGENT = os.environ.get("BOT_USER_AGENT", "TelegramAIBot/1.0")
 
