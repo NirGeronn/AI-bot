@@ -20,14 +20,44 @@ This bot is designed for **a single owner** — you. Authorization is locked to 
 
 ## Features
 
-- **Conversational** — natural chat with full history, memory, and personality (skills/soul.md)
-- **Multi-provider** — Anthropic Claude (default), OpenAI, or Google Gemini via `AI_PROVIDER` env var
-- **Skills system** — drop a markdown file in `skills/` to teach the bot a new capability
-- **Tools** — Gmail, Google Calendar (or iCloud via CalDAV), web search, web research, browser automation (Playwright), weather, todo lists, scheduled reminders, GitHub trends, image generation (Gemini), voice replies (TTS), YouTube/video summarization, breach lookup, speed test, PDF reading, and more
-- **Active memory** — remembers facts about you and surfaces them when relevant
-- **Proactive features** — heartbeat (standing orders like inbox/calendar checks), pulse (smart outreach), and a daily news digest tailored to your interests
-- **Persistent scheduling** — one-shot reminders + recurring weekly schedules survive restarts (SQLite-backed)
-- **Cost tracking** — per-message token usage and running cost via `/usage`
+### Core
+- 💬 **Conversational** — natural chat with full history, memory, and personality (`skills/soul.md`)
+- 🧠 **Active memory** — remembers facts about you and surfaces them when relevant
+- 🌍 **Multi-language** — replies in any language via `BOT_LANGUAGE`; per-feature overrides (e.g. `NEWS_DIGEST_LANGUAGE`)
+- 🔐 **Owner-only** — locked to your Telegram chat ID; ignores everyone else
+- 💸 **Cost tracking** — per-message token usage and running cost via `/usage`
+
+### AI providers
+- 🤖 **Anthropic Claude** — default, with prompt caching
+- 🟢 **OpenAI** — drop-in alternative via `AI_PROVIDER=openai`
+- ✨ **Google Gemini** — image generation (`gemini-2.5-flash-image`) + voice replies (TTS)
+
+### Skills & tools
+- 🧩 **Skills system** — drop a markdown file in `skills/` to teach the bot a new capability
+- 🛠️ **Add your own tools** — Anthropic-format schema + an async function (auto-converted to OpenAI format)
+- 🌐 **Web search & research** — DuckDuckGo + multi-page deep research
+- 🕸️ **Browser automation** — Playwright/Chromium for JS-heavy pages
+- 📧 **Gmail** — read, search, send, draft
+- 📅 **Calendar** — Google Calendar or iCloud (CalDAV)
+- ⏰ **Reminders & schedules** — one-shot + recurring weekly, persisted in SQLite (survive restarts)
+- ✅ **Todo lists** — named lists, add/complete/remove
+- 🌤️ **Weather** — current + 7-day forecast for any city
+- 🎨 **Image generation** — generate or edit images (uses your sent photo if `use_user_photo=true`)
+- 🎙️ **Voice in / voice out** — transcribes voice messages, replies with TTS
+- 🎬 **Video summarization** — YouTube and other video URLs
+- 📄 **PDF reading** — extract and summarize PDF content
+- 📈 **GitHub trends** — trending repos by language and timeframe
+- 🔎 **Misc utilities** — breach lookup, is-it-down, speed test, and more
+
+### Proactive
+- ❤️ **Heartbeat** — standing orders (inbox check, calendar check, todo review)
+- 📡 **Pulse** — smart unsolicited outreach
+- 📰 **Daily news digest** — morning briefing tailored to your interests
+
+### Ops
+- 💾 **SQLite storage** — conversations, memories, profile, usage, scheduled jobs
+- 🐧 **VM-ready** — included `deploy/` scripts for GCP + a generic systemd recipe
+- 🧪 **Test suite** — `pytest` covers tools, scheduler, memory, agent behavior
 
 ---
 
