@@ -1,0 +1,25 @@
+.env
+agent.db
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Google OAuth credentials
+client_secret.json
+google_token.json
+*_token.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# VM snapshots
+_pull/
