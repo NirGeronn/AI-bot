@@ -38,7 +38,7 @@ Just message the bot in plain language — it figures out which tool to call. So
 - _"What's the latest on the Fed rate decision?"_
 - _"Compare the iPhone 16 Pro and Pixel 9 Pro — battery, camera, price"_
 - _"Read https://example.com/long-article and give me the key points"_
-- _"Summarize this YouTube video: <link>"_
+- _"Summarize this YouTube video: &lt;link&gt;"_
 
 ### 🎨 Creative
 - _"Generate an image of a corgi astronaut on Mars"_
