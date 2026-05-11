@@ -184,10 +184,15 @@ async def _build_system_prompt(chat_id: int, memories: list[dict]) -> str:
     return prompt
 
 
-async def _build_dynamic_preamble(active_context: str | None = None) -> str:
+async def _build_dynamic_preamble(active_context: str | None = None, include_schedule_brief: bool = True) -> str:
     """Per-call dynamic content. Prepended to the user message so it stays
     OUT of the cached system prefix. Timestamp is rounded to the hour so
-    consecutive calls within the same hour don't bust the cache."""
+    consecutive calls within the same hour don't bust the cache.
+
+    include_schedule_brief: skip the list of today's scheduled jobs. Scheduled
+    jobs disable this so the model doesn't see other jobs' names and merge
+    them into its response (e.g. answering daily_news with weather + sports
+    appended)."""
     from mood import mood_prompt_section
     from datetime import datetime
     from zoneinfo import ZoneInfo
@@ -201,13 +206,14 @@ async def _build_dynamic_preamble(active_context: str | None = None) -> str:
         mood_prompt_section(),
     ]
 
-    try:
-        from tools.scheduler import get_schedule_brief
-        schedule_brief = await get_schedule_brief()
-        if schedule_brief:
-            parts.append(f"[Scheduled messages]\n{schedule_brief}")
-    except Exception as e:
-        logger.warning(f"Schedule brief failed: {e}")
+    if include_schedule_brief:
+        try:
+            from tools.scheduler import get_schedule_brief
+            schedule_brief = await get_schedule_brief()
+            if schedule_brief:
+                parts.append(f"[Scheduled messages]\n{schedule_brief}")
+        except Exception as e:
+            logger.warning(f"Schedule brief failed: {e}")
 
     if active_context:
         parts.append(f"[Active memory — context relevant to the current message]\n{active_context}")
@@ -295,7 +301,10 @@ async def run_agent(chat_id: int, user_text: str, image_data: dict | None = None
     # active memory) goes into the user message instead so the cache prefix
     # stays stable across calls.
     system_prompt = await _build_system_prompt(chat_id, memories)
-    preamble = await _build_dynamic_preamble(active_context=active_context)
+    preamble = await _build_dynamic_preamble(
+        active_context=active_context,
+        include_schedule_brief=not skip_active_memory,
+    )
 
     # Build user content (text or multimodal). Prepend the dynamic preamble
     # to whatever the user said.
