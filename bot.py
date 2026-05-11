@@ -398,8 +398,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     logger.info(f"[{chat_id}] Transcript: {transcript[:100]}")
-    # Show user what we heard
-    await update.message.reply_text(f"🎙 {transcript}")
 
     # Run agent on the transcript (same flow as handle_message)
     status_msg = None
