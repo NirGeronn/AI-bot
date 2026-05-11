@@ -332,14 +332,22 @@ class OpenAIClient:
     async def chat(self, messages: list, tools=None, max_tokens: int = 4096, temperature: float = 0.1, model_override: str = None) -> AIResponse:
         use_model = model_override or MODEL
 
+        # Newer OpenAI models (e.g. gpt-5.x, o1, o3) only accept the default
+        # temperature. Omit the param when the model name signals that family.
+        omit_temperature = (
+            use_model.startswith(("gpt-5", "o1", "o3", "o4"))
+        )
+
         async def _call():
-            return await self.client.chat.completions.create(
-                model=use_model,
-                max_completion_tokens=max_tokens,
-                temperature=temperature,
-                messages=messages,
-                tools=tools if tools else None,
-            )
+            kwargs = {
+                "model": use_model,
+                "max_completion_tokens": max_tokens,
+                "messages": messages,
+                "tools": tools if tools else None,
+            }
+            if not omit_temperature:
+                kwargs["temperature"] = temperature
+            return await self.client.chat.completions.create(**kwargs)
 
         response = await _retry_with_backoff(_call)
 
