@@ -439,6 +439,37 @@ async def run_agent(chat_id: int, user_text: str, image_data: dict | None = None
 
                 client.append_tool_result(full_messages, tc.id, tool_name, result)
 
+    # If the loop exited while the model still wanted to call tools (e.g. ran out of
+    # iterations), `last_response.text` is just the preamble emitted before a tool
+    # call — not a real answer. Force one synthesis call with no tools so the model
+    # has to produce a final answer with the information it already gathered.
+    if last_response and last_response.tool_calls and last_response.finish_reason != "stop":
+        logger.warning(
+            f"Loop exited mid-tool-use (iterations={iteration+1}, "
+            f"pending_tool_calls={len(last_response.tool_calls)}). Forcing synthesis."
+        )
+        try:
+            synth_response = await client.chat(
+                full_messages,
+                tools=None,
+                max_tokens=MAX_TOKENS,
+                temperature=0.1,
+                model_override=current_model if current_model != MODEL else None,
+            )
+            if synth_response.input_tokens or synth_response.output_tokens \
+                    or synth_response.cache_creation_input_tokens or synth_response.cache_read_input_tokens:
+                await record_usage(
+                    chat_id, synth_response.input_tokens, synth_response.output_tokens, current_model,
+                    cache_creation_tokens=synth_response.cache_creation_input_tokens,
+                    cache_read_tokens=synth_response.cache_read_input_tokens,
+                )
+            if synth_response.text:
+                last_response = synth_response
+        except Exception as e:
+            logger.error(f"Synthesis call failed: {e}")
+            await log_error(chat_id, "synthesis_error", "Forced synthesis after loop exit failed",
+                          str(e), user_message=user_text)
+
     # Extract final text and strip any leaked thinking blocks
     final_text = (last_response.text if last_response else None) or ""
     final_text = _strip_thinking(final_text)
