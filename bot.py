@@ -365,6 +365,77 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await send_long_message(update, response)
 
 
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Transcribe a Telegram voice message via OpenAI Whisper and run it
+    through the agent as if it were text."""
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        return
+
+    voice = update.message.voice or update.message.audio
+    if not voice:
+        return
+
+    file = await context.bot.get_file(voice.file_id)
+    audio_bytes = bytes(await file.download_as_bytearray())
+    logger.info(f"[{chat_id}] User sent voice ({len(audio_bytes)} bytes, ~{getattr(voice, 'duration', '?')}s)")
+
+    await update.effective_chat.send_action("typing")
+
+    # Transcribe
+    try:
+        from voice_input import transcribe_audio
+        transcript = await transcribe_audio(audio_bytes)
+    except Exception as e:
+        logger.error(f"Transcription failed: {e}", exc_info=True)
+        from error_log import log_error
+        await log_error(chat_id, "transcription_error", "Whisper transcription failed", str(e))
+        await update.message.reply_text(f"⚠️ לא הצלחתי לתמלל את ההקלטה: {e}")
+        return
+
+    if not transcript:
+        await update.message.reply_text("⚠️ ההקלטה ריקה או לא הצלחתי להבין אותה.")
+        return
+
+    logger.info(f"[{chat_id}] Transcript: {transcript[:100]}")
+    # Show user what we heard
+    await update.message.reply_text(f"🎙 {transcript}")
+
+    # Run agent on the transcript (same flow as handle_message)
+    status_msg = None
+    last_status = [None]
+
+    async def status_callback(text: str):
+        nonlocal status_msg
+        try:
+            if status_msg is None:
+                status_msg = await update.message.reply_text(f"⏳ {text}")
+                last_status[0] = text
+            elif text != last_status[0]:
+                await status_msg.edit_text(f"⏳ {text}")
+                last_status[0] = text
+            await update.effective_chat.send_action("typing")
+        except Exception:
+            pass
+
+    try:
+        response = await run_agent(chat_id, transcript, status_callback=status_callback)
+        logger.info(f"[{chat_id}] Agent: {response[:100]}")
+    except Exception as e:
+        logger.error(f"Agent error: {e}", exc_info=True)
+        from error_log import log_error
+        await log_error(chat_id, "agent_error", "Top-level agent crash (voice)", str(e), user_message=transcript)
+        response = f"Something went wrong: {e}"
+
+    if status_msg:
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
+
+    await send_long_message(update, response)
+
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle document uploads (PDF, text files, etc.)."""
     chat_id = update.effective_chat.id
@@ -517,6 +588,7 @@ def main():
     app.add_handler(CommandHandler("errors", cmd_errors))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     logger.info("Bot starting...")
