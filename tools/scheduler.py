@@ -483,6 +483,36 @@ async def _timer_done(context):
     )
 
 
+def _clean_leaked_reasoning(response: str) -> str:
+    """Strip reasoning/analysis leaked above the real output.
+
+    Scheduled-job prompts demand "output only the final block, no reasoning",
+    but the model sometimes ignores that and dumps its filtering process
+    first. Heuristics:
+      - If the response contains '---' separators, keep only the last block.
+      - Drop lines whose entire content is **bold-wrapped** (these are
+        section headers used in reasoning leaks; final outputs forbid bold).
+      - Drop lines starting with ✅ or ❌ (filtering markers).
+    Safe no-op when the response is already clean.
+    """
+    if not response:
+        return response
+    s = response.strip()
+    if "---" in s:
+        blocks = [b.strip() for b in s.split("---") if b.strip()]
+        if blocks:
+            s = blocks[-1]
+    out_lines = []
+    for line in s.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("✅", "❌")):
+            continue
+        if stripped.startswith("**") and stripped.endswith("**") and len(stripped) >= 4:
+            continue
+        out_lines.append(line)
+    return "\n".join(out_lines).strip()
+
+
 def _should_skip(response: str) -> bool:
     """True if the response asks to skip the send.
 
@@ -527,6 +557,7 @@ async def _send_daily(context):
 
     try:
         response = await run_agent(chat_id, prompt, skip_active_memory=True, skip_history=True)
+        response = _clean_leaked_reasoning(response)
         if _should_skip(response):
             logger.info(f"Daily job '{context.job.name}' returned SKIP — no message sent")
             await _record_last_run(db_job_name, today_iso)
@@ -552,6 +583,7 @@ async def _send_scheduled(context):
 
     try:
         response = await run_agent(chat_id, prompt, skip_active_memory=True, skip_history=True)
+        response = _clean_leaked_reasoning(response)
         if _should_skip(response):
             logger.info(f"Scheduled job '{context.job.name}' returned SKIP — no message sent")
             await _delete_job(context.job.name)
