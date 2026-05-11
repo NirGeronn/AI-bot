@@ -213,6 +213,12 @@ async def execute_web_tool(name: str, input_data: dict, chat_id: int) -> str:
             results = _search_ddg(query, max_results)
             return json.dumps({"results": results})
         except Exception as e:
+            # "No results found" isn't really a tool failure — DDGS raises it
+            # when every backend returns empty. Treat as empty results so the
+            # model retries with a different query instead of bailing.
+            msg = str(e).lower()
+            if "no results" in msg or "no result" in msg:
+                return json.dumps({"results": [], "note": "0 hits — try a different query"})
             return json.dumps({"error": f"Search failed: {str(e)}"})
 
     elif name == "browse_url":
