@@ -3,7 +3,7 @@ from tools.system import SYSTEM_TOOLS, execute_system_tool
 from tools.web import WEB_TOOLS, execute_web_tool
 from tools.gmail import GMAIL_TOOLS, execute_gmail_tool
 from tools.scheduler import SCHEDULER_TOOLS, execute_scheduler_tool
-from config import CALENDAR_PROVIDER
+from config import CALENDAR_PROVIDER, AI_PROVIDER
 from tools.google_tasks import GOOGLE_TASK_TOOLS, execute_google_task_tool
 if CALENDAR_PROVIDER == "icloud":
     from tools.icloud_calendar import CALENDAR_TOOLS, execute_calendar_tool
@@ -18,7 +18,13 @@ from tools.todo import TODO_TOOLS, execute_todo_tool
 from tools.utilities import UTILITY_TOOLS, execute_utility_tool
 from tools.trends import TRENDS_TOOLS, execute_trends_tool
 from tools.browser import BROWSER_TOOLS, execute_browser_tool
-from tools.anthropic_billing import ANTHROPIC_BILLING_TOOLS, execute_anthropic_billing_tool
+# Anthropic billing tool only registered when running on Anthropic — its
+# prices/balance logic is Anthropic-specific and would mislead on OpenAI.
+if AI_PROVIDER == "anthropic":
+    from tools.anthropic_billing import ANTHROPIC_BILLING_TOOLS, execute_anthropic_billing_tool
+else:
+    ANTHROPIC_BILLING_TOOLS = []
+    execute_anthropic_billing_tool = None
 from tools.football import FOOTBALL_TOOLS, execute_football_tool
 
 # Unified alias for contacts (used by tool_router)
@@ -64,8 +70,9 @@ for tool in TRENDS_TOOLS:
     _EXECUTORS[tool["name"]] = execute_trends_tool
 for tool in BROWSER_TOOLS:
     _EXECUTORS[tool["name"]] = execute_browser_tool
-for tool in ANTHROPIC_BILLING_TOOLS:
-    _EXECUTORS[tool["name"]] = execute_anthropic_billing_tool
+if execute_anthropic_billing_tool is not None:
+    for tool in ANTHROPIC_BILLING_TOOLS:
+        _EXECUTORS[tool["name"]] = execute_anthropic_billing_tool
 for tool in FOOTBALL_TOOLS:
     _EXECUTORS[tool["name"]] = execute_football_tool
 
