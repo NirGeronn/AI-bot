@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from config import MODEL, MODEL_PRO, MODEL_LITE, MAX_TOKENS, MAX_HISTORY
+from config import MODEL, MODEL_PRO, MODEL_LITE, MAX_TOKENS, MAX_HISTORY, BOT_LANGUAGE
 from ai_client import get_client
 from skills_loader import get_base_system_prompt
 from memory import (
@@ -65,6 +65,46 @@ def _describe_api_error(exc: Exception) -> str:
     if provider_msg:
         return f"⚠️ LLM provider error: {provider_msg}"
     return f"⚠️ LLM call failed: {raw[:400]}"
+
+
+_TOOL_CALL_LEAK_RE = re.compile(
+    r'^\s*\{\s*"(?:command|tool|name|function|arguments|input)"\s*:',
+    re.MULTILINE,
+)
+
+
+def _looks_like_tool_call_leak(text: str) -> bool:
+    """Detect when the model emitted tool-call JSON as plain text instead of a real answer."""
+    if not text:
+        return False
+    head = text.strip()[:300]
+    if _TOOL_CALL_LEAK_RE.search(head):
+        return True
+    if text.count('{"command":') >= 2 or text.count('"timeout":') >= 2:
+        return True
+    if "malformed JSON" in text and "retrying" in text:
+        return True
+    return False
+
+
+def _stuck_fallback() -> str:
+    """User-facing message when the agent loop collapses and synthesis can't recover."""
+    if BOT_LANGUAGE == "Hebrew":
+        return "סליחה, נתקעתי באמצע. תוכל לנסח מחדש או לפצל לבקשות יותר קטנות?"
+    return "Sorry — I got stuck mid-task. Could you rephrase, or break it into smaller asks?"
+
+
+def _append_synthesis_instruction(client, full_messages, instruction: str):
+    """Add a plain-text instruction after pending tool_results so the synthesis call
+    has somewhere to anchor. Handles both Anthropic (messages dict) and OpenAI (list)."""
+    if isinstance(full_messages, dict) and "messages" in full_messages:
+        msgs = full_messages["messages"]
+        if msgs and msgs[-1].get("role") == "user" and isinstance(msgs[-1].get("content"), list):
+            msgs[-1]["content"].append({"type": "text", "text": instruction})
+        else:
+            msgs.append({"role": "user", "content": instruction})
+    else:
+        full_messages.append({"role": "user", "content": instruction})
 
 
 def _strip_thinking(text: str) -> str:
@@ -480,11 +520,23 @@ async def run_agent(chat_id: int, user_text: str, image_data: dict | None = None
     # iterations), `last_response.text` is just the preamble emitted before a tool
     # call — not a real answer. Force one synthesis call with no tools so the model
     # has to produce a final answer with the information it already gathered.
+    synthesis_collapsed = False
     if last_response and last_response.tool_calls and last_response.finish_reason != "stop":
         logger.warning(
             f"Loop exited mid-tool-use (iterations={iteration+1}, "
             f"pending_tool_calls={len(last_response.tool_calls)}). Forcing synthesis."
         )
+        # Every tool_call from the last iteration has already been fulfilled inside
+        # the loop body via append_tool_result, so the message history is well-formed.
+        # We just need to nudge the model to produce a plain-text answer instead of
+        # continuing the tool loop (which is what triggers the JSON-in-text leak).
+        _append_synthesis_instruction(
+            client, full_messages,
+            "Iteration limit reached. Reply to the user in plain text using the information "
+            "already gathered. Do not output JSON, do not output tool-call syntax. "
+            "If you cannot answer fully, apologize briefly and ask the user to clarify or narrow the request.",
+        )
+        synthesis_collapsed = True
         try:
             synth_response = await client.chat(
                 full_messages,
@@ -510,6 +562,21 @@ async def run_agent(chat_id: int, user_text: str, image_data: dict | None = None
     # Extract final text and strip any leaked thinking blocks
     final_text = (last_response.text if last_response else None) or ""
     final_text = _strip_thinking(final_text)
+
+    # Last-resort guard: when the loop collapsed and the model either leaked
+    # tool-call JSON as its "answer" or returned nothing at all, swap in a
+    # friendly fallback so the user doesn't see gibberish or an empty reply.
+    if synthesis_collapsed and (_looks_like_tool_call_leak(final_text) or not final_text.strip()):
+        logger.warning(f"Collapsed synthesis produced bad output, using fallback. text={final_text[:200]!r}")
+        await log_error(chat_id, "collapsed_synthesis", "Iteration-limit collapse produced unusable output",
+                      final_text[:500] or "(empty)", user_message=user_text)
+        final_text = _stuck_fallback()
+    elif _looks_like_tool_call_leak(final_text):
+        # Defense in depth: tool-call leak outside the collapse path (rare).
+        logger.warning(f"Tool-call JSON leaked into response, replacing with fallback: {final_text[:200]}")
+        await log_error(chat_id, "tool_call_leak", "Tool-call JSON leaked into final response",
+                      final_text[:500], user_message=user_text)
+        final_text = _stuck_fallback()
 
     # Log empty responses
     if not final_text.strip():

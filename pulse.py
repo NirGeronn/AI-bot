@@ -6,6 +6,7 @@ sends a proactive message if confident it's useful. Learns from declines.
 from __future__ import annotations
 
 import json
+import re
 import time
 import logging
 import aiosqlite
@@ -17,6 +18,21 @@ logger = logging.getLogger(__name__)
 PULSE_CONFIDENCE_THRESHOLD = 0.7
 PULSE_COOLDOWN_SECONDS = 4 * 3600  # 4 hours between pulses
 ACTIVE_CONVERSATION_GRACE_SECONDS = 120  # Don't interrupt active chats
+
+
+_STOPWORDS = {"daily", "weekly", "check", "reminder", "morning", "evening", "the", "a", "an"}
+
+
+def _topic_overlaps_daily_job(topic: str, job_names: list[str]) -> bool:
+    """True if topic shares a non-stopword token with any active daily job_name."""
+    if not topic or not job_names:
+        return False
+    tokens = {t for t in re.split(r"[^a-z0-9]+", topic.lower()) if t and t not in _STOPWORDS}
+    for jn in job_names:
+        job_tokens = {t for t in re.split(r"[^a-z0-9]+", jn.lower()) if t and t not in _STOPWORDS}
+        if tokens & job_tokens:
+            return True
+    return False
 
 
 async def _ensure_pulse_table():
@@ -76,6 +92,18 @@ async def _get_suppressed_topics(chat_id: int) -> list[str]:
         )
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+async def _get_active_daily_jobs(chat_id: int) -> list[str]:
+    """Job names already handled by the daily schedule — pulse must not duplicate them."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT job_name, hour, minute FROM scheduled_jobs "
+            "WHERE chat_id = ? AND job_type = 'daily' ORDER BY hour, minute",
+            (chat_id,),
+        )
+        rows = await cursor.fetchall()
+    return [f"{r[0]} (runs daily at {r[1]:02d}:{r[2]:02d})" for r in rows]
 
 
 async def _record_pulse(chat_id: int, message: str, confidence: float):
@@ -167,12 +195,14 @@ async def generate_pulse(chat_id: int) -> dict | None:
     memories = await get_all_memories(chat_id)
     summaries = await get_recent_daily_summaries(chat_id, days=3)
     suppressed = await _get_suppressed_topics(chat_id)
+    daily_jobs = await _get_active_daily_jobs(chat_id)
     signals = _gather_action_signals()
     todos = await _check_todos_raw(chat_id)
 
     mem_text = "\n".join(f"- {m['key']}: {m['value']}" for m in memories[:30]) if memories else "(no memories)"
     sum_text = "\n".join(f"- {s['date']}: {s['summary']}" for s in summaries) if summaries else "(no recent summaries)"
     supp_text = ", ".join(suppressed) if suppressed else "(none)"
+    daily_jobs_text = "\n".join(f"- {j}" for j in daily_jobs) if daily_jobs else "(none)"
 
     inbox_text = "\n".join(
         f"- from {(e.get('from') or '').split('<')[0].strip() or '?'}: {e.get('subject','')[:80]} — {e.get('snippet','')[:120]}"
@@ -206,6 +236,9 @@ async def generate_pulse(chat_id: int) -> dict | None:
         "- Set confidence 0.0-1.0 (only send if >= 0.7); 0 if nothing actionable\n"
         "- Keep it to 1-2 sentences\n"
         "- Do NOT repeat suppressed topics\n"
+        "- Do NOT propose actions already covered by an active daily scheduled job. "
+        "If the user has a daily job (e.g. daily_sports, daily_news, morning_weather), "
+        "DO NOT offer to do that same thing now — it would duplicate the scheduled run.\n"
         f"- Write in {BOT_LANGUAGE}\n\n"
         "Return ONLY valid JSON: {\"message\": \"...\", \"confidence\": 0.X, \"topic\": \"short_topic_key\"}"
     )
@@ -217,6 +250,7 @@ async def generate_pulse(chat_id: int) -> dict | None:
         f"Open todos (top 5):\n{todos_text}\n\n"
         f"User memories:\n{mem_text}\n\n"
         f"Recent daily summaries:\n{sum_text}\n\n"
+        f"Active daily scheduled jobs (DO NOT propose duplicating these):\n{daily_jobs_text}\n\n"
         f"Suppressed topics (DO NOT suggest these):\n{supp_text}"
     )
 
@@ -251,6 +285,14 @@ async def generate_pulse(chat_id: int) -> dict | None:
     topic = result.get("topic", "unknown")
 
     if not message:
+        return None
+
+    # Defense-in-depth: reject if the topic shares a meaningful token with an
+    # active daily job. The LLM is instructed not to duplicate, but it does
+    # anyway (e.g. proposing `daily_sports_check` when `daily_sports` already runs).
+    job_names = [j.split(" ", 1)[0] for j in daily_jobs]
+    if _topic_overlaps_daily_job(topic, job_names):
+        logger.info(f"Pulse: topic '{topic}' overlaps active daily job, skipping")
         return None
 
     # Record the pulse
