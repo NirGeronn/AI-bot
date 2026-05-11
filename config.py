@@ -11,10 +11,14 @@ OWNER_CHAT_ID = int(os.environ["OWNER_CHAT_ID"]) if os.environ.get("OWNER_CHAT_I
 if AI_PROVIDER == "anthropic":
     MODEL = os.environ.get("MODEL", "claude-haiku-4-5-20251001")
     MODEL_PRO = os.environ.get("MODEL_PRO", "claude-haiku-4-5-20251001")
+    MODEL_LITE = os.environ.get("MODEL_LITE", MODEL)
     AI_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 else:
     MODEL = os.environ.get("MODEL", "gpt-5.4-mini")
     MODEL_PRO = os.environ.get("MODEL_PRO", MODEL)
+    # Lighter/faster variant for short conversational queries. Defaults to
+    # MODEL_PRO so behavior is unchanged if you don't set it.
+    MODEL_LITE = os.environ.get("MODEL_LITE", MODEL_PRO)
     AI_API_KEY = OPENAI_API_KEY
 MAX_TOKENS = 8192
 MAX_HISTORY = 30

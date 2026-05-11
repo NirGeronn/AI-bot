@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from config import MODEL, MODEL_PRO, MAX_TOKENS, MAX_HISTORY
+from config import MODEL, MODEL_PRO, MODEL_LITE, MAX_TOKENS, MAX_HISTORY
 from ai_client import get_client
 from skills_loader import get_base_system_prompt
 from memory import (
@@ -153,6 +153,37 @@ TOOL_STATUS = {
     "browser_type": "Typing...",
     "browser_screenshot": "Taking screenshot...",
 }
+
+
+# Keywords that signal a heavy/research query — push to MODEL_PRO.
+_RESEARCH_PATTERNS = re.compile(
+    r'\b(research|investigate|compare|analyze|deep dive|find out|explain in detail'
+    r'|תחקור|חקור|השווה|נתח|הסבר לעומק|בדוק לי)\b',
+    re.IGNORECASE,
+)
+# Tool-name prefixes whose presence in the selected toolset signals a
+# heavy/structured task — push to MODEL_PRO.
+_HEAVY_TOOL_PREFIXES = ("gmail_", "calendar_", "browser_", "google_task")
+
+
+def _pick_agent_model(user_text: str | None, image_data: dict | None,
+                      selected_tools: list | None, is_scheduled: bool) -> str:
+    """Return MODEL_LITE for short conversational queries, MODEL_PRO otherwise."""
+    if MODEL_LITE == MODEL_PRO:
+        return MODEL_PRO
+    if is_scheduled or image_data:
+        return MODEL_PRO
+    if selected_tools:
+        for t in selected_tools:
+            name = t.get("name", "") if isinstance(t, dict) else ""
+            if name.startswith(_HEAVY_TOOL_PREFIXES) or name == "web_research":
+                return MODEL_PRO
+    if user_text:
+        if len(user_text) > 250:
+            return MODEL_PRO
+        if _RESEARCH_PATTERNS.search(user_text):
+            return MODEL_PRO
+    return MODEL_LITE
 
 
 async def _build_system_prompt(chat_id: int, memories: list[dict]) -> str:
@@ -322,9 +353,15 @@ async def run_agent(chat_id: int, user_text: str, image_data: dict | None = None
     selected_tools = select_tool_groups(user_text, image_data=image_data, explicit_groups=tool_groups)
     formatted_tools = get_formatted_tools(client, selected_tools) if selected_tools else None
 
-    # Always use MODEL_PRO for the agent loop — it handles tools reliably.
-    # MODEL is used for internal calls (summaries, compaction, diary).
-    current_model = MODEL_PRO
+    # Hybrid model selection: pick MODEL_LITE for short conversational queries
+    # and MODEL_PRO for anything heavier (images, complex tools, research,
+    # scheduled jobs). Saves cost and latency on the common case.
+    current_model = _pick_agent_model(
+        user_text=user_text,
+        image_data=image_data,
+        selected_tools=selected_tools,
+        is_scheduled=skip_active_memory and skip_history,
+    )
 
     # Agentic tool loop with error recovery
     max_iterations = 10
