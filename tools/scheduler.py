@@ -484,10 +484,23 @@ async def _timer_done(context):
 
 
 def _should_skip(response: str) -> bool:
+    """True if the response asks to skip the send.
+
+    Accepts [SKIP] as:
+      - the entire response,
+      - the first non-empty line,
+      - or the last non-empty line (model leaked reasoning above but still
+        concluded with [SKIP] — respect the intent rather than spam the user).
+    """
     if not response:
         return True
     stripped = response.strip()
-    return stripped == "[SKIP]" or stripped.upper().startswith("[SKIP]")
+    if stripped == "[SKIP]" or stripped.upper().startswith("[SKIP]"):
+        return True
+    lines = [ln.strip() for ln in stripped.splitlines() if ln.strip()]
+    if lines and lines[-1].upper() == "[SKIP]":
+        return True
+    return False
 
 
 async def _send_daily(context):
