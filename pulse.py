@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 PULSE_CONFIDENCE_THRESHOLD = 0.7
 PULSE_COOLDOWN_SECONDS = 4 * 3600  # 4 hours between pulses
 ACTIVE_CONVERSATION_GRACE_SECONDS = 120  # Don't interrupt active chats
+# Quiet hours in USER_TIMEZONE local time. Pulses are suppressed when the
+# local hour is >= START or < END. With (22, 8) the bot stays silent from
+# 22:00 to 08:00 local. Env overrides: PULSE_QUIET_START / PULSE_QUIET_END.
+import os as _os
+PULSE_QUIET_START_HOUR = int(_os.environ.get("PULSE_QUIET_START", 22))
+PULSE_QUIET_END_HOUR = int(_os.environ.get("PULSE_QUIET_END", 8))
 
 
 _STOPWORDS = {"daily", "weekly", "check", "reminder", "morning", "evening", "the", "a", "an"}
@@ -148,9 +154,26 @@ async def suppress_topic(chat_id: int, topic: str):
         await db.commit()
 
 
+def _in_quiet_hours() -> bool:
+    """True if current local time is inside the configured quiet window."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    hour = datetime.now(ZoneInfo(USER_TIMEZONE)).hour
+    start, end = PULSE_QUIET_START_HOUR, PULSE_QUIET_END_HOUR
+    if start == end:
+        return False
+    if start < end:
+        return start <= hour < end
+    # Window crosses midnight (e.g. 22 -> 8)
+    return hour >= start or hour < end
+
+
 async def should_pulse(chat_id: int) -> bool:
     """Check if conditions are right for a proactive pulse."""
     now = time.time()
+
+    if _in_quiet_hours():
+        return False
 
     # Don't interrupt active conversations
     last_msg = await _last_message_time(chat_id)

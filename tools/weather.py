@@ -142,6 +142,65 @@ async def _http_get_json(url: str, params: dict, timeout: float = 10.0, retries:
     raise last_err if last_err else RuntimeError(f"Failed to fetch {url}")
 
 
+async def _wttr_fetch(location_name: str) -> dict | None:
+    """Fallback weather via wttr.in when Open-Meteo is unreachable.
+    Returns {"daily": ..., "current": ...} shaped like Open-Meteo so callers
+    consume it transparently. Returns None on failure."""
+    url = f"https://wttr.in/{location_name}"
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(url, params={"format": "j1"})
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning(f"wttr.in fallback failed for {location_name!r}: {type(e).__name__}: {e}")
+        return None
+
+    weather = data.get("weather") or []
+    if not weather:
+        return None
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    daily: dict[str, list] = {
+        "time": [], "temperature_2m_max": [], "temperature_2m_min": [],
+        "precipitation_sum": [], "wind_speed_10m_max": [], "weather_code": [],
+    }
+    for day in weather:
+        daily["time"].append(day.get("date"))
+        daily["temperature_2m_max"].append(_f(day.get("maxtempC")))
+        daily["temperature_2m_min"].append(_f(day.get("mintempC")))
+        precip_total = 0.0
+        max_wind = 0.0
+        for h in day.get("hourly", []):
+            p = _f(h.get("precipMM"))
+            if p is not None:
+                precip_total += p
+            w = _f(h.get("windspeedKmph"))
+            if w is not None and w > max_wind:
+                max_wind = w
+        daily["precipitation_sum"].append(round(precip_total, 1))
+        daily["wind_speed_10m_max"].append(round(max_wind, 1))
+        # wttr doesn't expose WMO codes; downstream maps -1 to "Unknown".
+        daily["weather_code"].append(-1)
+
+    cc = (data.get("current_condition") or [{}])[0]
+    current = {
+        "temperature_2m": _f(cc.get("temp_C")),
+        "apparent_temperature": _f(cc.get("FeelsLikeC")),
+        "relative_humidity_2m": _f(cc.get("humidity")),
+        "wind_speed_10m": _f(cc.get("windspeedKmph")),
+        "precipitation": _f(cc.get("precipMM")),
+        # wttr's `weatherCode` is MSN-style, not WMO; leave it unmapped.
+        "weather_code": -1,
+    }
+    return {"daily": daily, "current": current}
+
+
 async def _geocode(city: str) -> dict | None:
     """Convert city name to coordinates using Open-Meteo geocoding."""
     data = await _http_get_json(
@@ -195,6 +254,8 @@ async def execute_weather_tool(name: str, input_data: dict, chat_id: int) -> str
         # Open-Meteo forecast — only when we have coordinates.
         data: dict = {}
         forecast_error: str | None = None
+        forecast_source: str | None = None
+        current_source: str | None = None
         if location["lat"] is not None and location["lon"] is not None:
             try:
                 data = await _http_get_json(
@@ -208,9 +269,26 @@ async def execute_weather_tool(name: str, input_data: dict, chat_id: int) -> str
                         "forecast_days": 7,
                     },
                 )
+                forecast_source = "open-meteo"
+                if data.get("current"):
+                    current_source = "open-meteo"
             except Exception as e:
                 forecast_error = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                 logger.warning(f"Open-Meteo forecast failed for {location['name']}: {forecast_error}")
+
+        # Fallback: wttr.in. Triggers when Open-Meteo failed or gave no daily data.
+        if not data.get("daily", {}).get("time"):
+            wttr = await _wttr_fetch(location["name"])
+            if wttr:
+                data["daily"] = wttr["daily"]
+                # Only fill current from wttr if Open-Meteo didn't give us any —
+                # IMS may still override below for Israeli cities.
+                if not data.get("current"):
+                    data["current"] = wttr["current"]
+                    current_source = "wttr.in"
+                forecast_source = "wttr.in"
+                forecast_error = None
+                logger.info(f"Using wttr.in fallback forecast for {location['name']}")
 
         current = data.get("current", {})
         daily = data.get("daily", {})
@@ -222,7 +300,7 @@ async def execute_weather_tool(name: str, input_data: dict, chat_id: int) -> str
             "wind_kmh": current.get("wind_speed_10m"),
             "precipitation_mm": current.get("precipitation"),
             "condition": WMO_CODES.get(current.get("weather_code", -1), "Unknown"),
-            "source": "open-meteo" if data else None,
+            "source": current_source,
         }
 
         # If this is an Israeli city we know, try IMS for real station-quality
@@ -257,7 +335,7 @@ async def execute_weather_tool(name: str, input_data: dict, chat_id: int) -> str
             "location": f"{location['name']}, {location['country']}",
             "current": current_block,
             "forecast": [],
-            "forecast_source": "open-meteo" if data else None,
+            "forecast_source": forecast_source,
         }
 
         dates = daily.get("time", [])
