@@ -56,6 +56,34 @@ SYSTEM_TOOLS = [
             "required": ["balance_usd"],
         },
     },
+    {
+        "name": "log_bot_error",
+        "description": (
+            "Record a bot mistake into the error_log table. You MUST call this tool "
+            "whenever the user asks you to log an error — e.g. 'log this', "
+            "'add to error log', 'תוסיף לerror log', 'רשום את השגיאה'. "
+            "Never claim an error was 'logged' / 'נרשם' without actually calling this tool. "
+            "Describe the mistake honestly in your own words."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "error_type": {
+                    "type": "string",
+                    "description": "Short category, e.g. 'bot_mistake', 'context_loss', 'wrong_answer', 'misread_request'.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What went wrong, in 1-3 sentences. The bot's own description of its mistake.",
+                },
+                "user_complaint": {
+                    "type": "string",
+                    "description": "The user's message that flagged the issue (verbatim or close paraphrase). Optional.",
+                },
+            },
+            "required": ["error_type", "description"],
+        },
+    },
 ]
 
 
@@ -150,5 +178,19 @@ async def execute_system_tool(name: str, input_data: dict, chat_id: int) -> str:
             "balance_usd": balance,
             "note": "I'll track spending from now and show remaining balance when you ask for usage.",
         })
+
+    elif name == "log_bot_error":
+        from error_log import log_error
+        err_type = input_data.get("error_type", "bot_mistake")
+        description = input_data.get("description", "")
+        user_complaint = input_data.get("user_complaint")
+        await log_error(
+            chat_id,
+            err_type,
+            "User-reported bot mistake",
+            description,
+            user_message=user_complaint,
+        )
+        return json.dumps({"status": "logged", "error_type": err_type})
 
     return json.dumps({"error": f"Unknown system tool: {name}"})

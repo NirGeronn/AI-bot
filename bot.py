@@ -2,7 +2,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from config import TELEGRAM_TOKEN, OWNER_CHAT_ID
-from memory import init_db, clear_history, get_all_memories, get_usage_stats
+from memory import init_db, clear_history, get_all_memories, get_usage_stats, save_message
 from agent import run_agent
 
 logging.basicConfig(
@@ -52,6 +52,10 @@ async def _run_pulse_check(context):
         result = await generate_pulse(chat_id)
         if result:
             await context.bot.send_message(chat_id=chat_id, text=result["message"])
+            # Persist to conversations so the agent sees its own question when
+            # the user replies (otherwise a "כן" reply has no antecedent and
+            # the agent answers from stale prior context).
+            await save_message(chat_id, "assistant", result["message"])
             logger.info(f"Pulse sent: {result['topic']} ({result['confidence']:.2f})")
     except Exception as e:
         logger.error(f"Pulse check failed: {e}", exc_info=True)
